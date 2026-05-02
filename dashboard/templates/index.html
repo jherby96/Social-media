@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ brand_name }} — Automation Dashboard</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #22263a;
+      --border:   #2e3350;
+      --teal:     #0d9488;
+      --teal-lt:  #14b8a6;
+      --purple:   #7c3aed;
+      --yellow:   #d97706;
+      --red:      #dc2626;
+      --green:    #16a34a;
+      --text:     #e2e8f0;
+      --muted:    #94a3b8;
+      --radius:   10px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+    /* ── Sidebar ───────────────────────────────────────────────── */
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    .sidebar-logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); }
+    .sidebar-logo h2 { font-size: 16px; font-weight: 700; color: var(--teal-lt); }
+    .sidebar-logo p  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .nav { flex: 1; padding: 16px 0; }
+    .nav-section { padding: 8px 20px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; color: var(--muted); cursor: pointer; transition: all .15s; font-size: 13px; border-left: 3px solid transparent; text-decoration: none; }
+    .nav-item:hover  { color: var(--text); background: var(--surface2); }
+    .nav-item.active { color: var(--teal-lt); background: rgba(13,148,136,.12); border-left-color: var(--teal); }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; box-shadow: 0 0 6px var(--green); }
+
+    /* ── Main content ──────────────────────────────────────────── */
+    .main { padding: 28px 32px; overflow-y: auto; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-title { font-size: 22px; font-weight: 700; }
+    .page-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ── KPI cards ─────────────────────────────────────────────── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .kpi-value { font-size: 28px; font-weight: 700; }
+    .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .kpi-card.teal  .kpi-value { color: var(--teal-lt); }
+    .kpi-card.green .kpi-value { color: #4ade80; }
+    .kpi-card.yellow .kpi-value { color: #fbbf24; }
+    .kpi-card.red    .kpi-value { color: #f87171; }
+
+    /* ── Section / card ────────────────────────────────────────── */
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .section-title { font-size: 14px; font-weight: 600; }
+    .section-body { padding: 16px 20px; }
+
+    /* ── Tables ────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(46,51,80,.5); font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Badges ────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: rgba(22,163,74,.2);  color: #4ade80; }
+    .badge-yellow { background: rgba(217,119,6,.2);  color: #fbbf24; }
+    .badge-red    { background: rgba(220,38,38,.2);  color: #f87171; }
+    .badge-blue   { background: rgba(59,130,246,.2); color: #93c5fd; }
+    .badge-purple { background: rgba(124,58,237,.2); color: #c4b5fd; }
+    .badge-gray   { background: rgba(100,116,139,.2);color: #94a3b8; }
+
+    /* ── Buttons ───────────────────────────────────────────────── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+    .btn-primary { background: var(--teal); color: #fff; }
+    .btn-primary:hover { background: var(--teal-lt); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--teal); color: var(--teal-lt); }
+    .btn-danger { background: rgba(220,38,38,.15); color: #f87171; border: 1px solid rgba(220,38,38,.3); }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* ── Toggle switch ─────────────────────────────────────────── */
+    .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 999px; cursor: pointer; transition: .2s; }
+    .toggle-slider::after { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 3px; top: 3px; transition: .2s; }
+    .toggle input:checked + .toggle-slider { background: var(--teal); }
+    .toggle input:checked + .toggle-slider::after { transform: translateX(18px); }
+
+    /* ── Automation tiers ─────────────────────────────────────── */
+    .tier-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .tier-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .tier-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+    .tier-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; display: inline-block; }
+    .tier-1 { background: rgba(13,148,136,.25); color: var(--teal-lt); }
+    .tier-2 { background: rgba(59,130,246,.25); color: #93c5fd; }
+    .tier-3 { background: rgba(124,58,237,.25); color: #c4b5fd; }
+    .tier-4 { background: rgba(100,116,139,.25); color: #94a3b8; }
+    .tier-title { font-size: 14px; font-weight: 600; }
+    .tier-desc { font-size: 12px; color: var(--muted); }
+    .tier-automations { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .auto-row { display: flex; align-items: center; justify-content: space-between; }
+    .auto-name { font-size: 12px; }
+    .auto-meta { font-size: 11px; color: var(--muted); margin-left: 6px; }
+    .auto-actions { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Alerts ────────────────────────────────────────────────── */
+    .alert { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; }
+    .alert-warning { background: rgba(217,119,6,.15); border: 1px solid rgba(217,119,6,.3); color: #fbbf24; }
+    .alert-critical { background: rgba(220,38,38,.15); border: 1px solid rgba(220,38,38,.3); color: #f87171; }
+    .alert-info { background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25); color: #93c5fd; }
+
+    /* ── Forms ─────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .form-input, .form-select, .form-textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 13px; transition: border-color .15s; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--teal); }
+    .form-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── Modal ─────────────────────────────────────────────────── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; min-width: 440px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+    /* ── Activity feed ─────────────────────────────────────────── */
+    .activity-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(46,51,80,.4); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .activity-dot.success { background: var(--green); }
+    .activity-dot.error { background: var(--red); }
+    .activity-dot.warning { background: var(--yellow); }
+    .activity-text { font-size: 12px; }
+    .activity-meta { font-size: 11px; color: var(--muted); }
+
+    /* ── Tabs ──────────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab { padding: 8px 16px; font-size: 13px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+    .tab.active { color: var(--teal-lt); border-bottom-color: var(--teal); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Responsive ────────────────────────────────────────────── */
+    @media(max-width:900px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .kpi-grid { grid-template-columns: repeat(2,1fr); }
+      .tier-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Misc utils ────────────────────────────────────────────── */
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .gap-2 { gap: 8px; }
+    .gap-3 { gap: 12px; }
+    .ml-auto { margin-left: auto; }
+    .text-muted { color: var(--muted); }
+    .text-sm { font-size: 12px; }
+    .font-bold { font-weight: 700; }
+    .mb-4 { margin-bottom: 16px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+    .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h2>{{ brand_name }}</h2>
+      <p>Automation Dashboard</p>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Overview</div>
+      <a class="nav-item active" data-page="overview" onclick="showPage('overview',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <div class="nav-section">Tier 1 — Day 1</div>
+      <a class="nav-item" data-page="orders" onclick="showPage('orders',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        Orders & Fulfilment
+      </a>
+      <a class="nav-item" data-page="inventory" onclick="showPage('inventory',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Inventory
+      </a>
+      <a class="nav-item" data-page="accounting" onclick="showPage('accounting',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Accounting & Tax
+      </a>
+      <div class="nav-section">Tier 2 — Week 1–2</div>
+      <a class="nav-item" data-page="emails" onclick="showPage('emails',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Customer Comms
+      </a>
+      <a class="nav-item" data-page="support" onclick="showPage('support',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Support Tickets
+      </a>
+      <div class="nav-section">Tier 3 — Month 1–2</div>
+      <a class="nav-item" data-page="compliance" onclick="showPage('compliance',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Compliance & COAs
+      </a>
+      <a class="nav-item" data-page="marketing" onclick="showPage('marketing',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Marketing & Social
+      </a>
+      <div class="nav-section">Tier 4</div>
+      <a class="nav-item" data-page="automations" onclick="showPage('automations',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        All Automations
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="status-dot"></span> System running
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ═══ OVERVIEW ════════════════════════════════════════════ -->
+    <div id="page-overview" class="page active">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle">Real-time overview of all business automations</div>
+        </div>
+        <button class="btn btn-secondary" onclick="loadDashboard()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card teal">
+          <div class="kpi-label">Orders Today</div>
+          <div class="kpi-value" id="kpi-orders">—</div>
+          <div class="kpi-sub">New WooCommerce orders</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Revenue Today</div>
+          <div class="kpi-value" id="kpi-revenue">—</div>
+          <div class="kpi-sub">Gross sales (inc. GST)</div>
+        </div>
+        <div class="kpi-card yellow">
+          <div class="kpi-label">Open Tickets</div>
+          <div class="kpi-value" id="kpi-tickets">—</div>
+          <div class="kpi-sub">Awaiting resolution</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">Low Stock Items</div>
+          <div class="kpi-value" id="kpi-stock">—</div>
+          <div class="kpi-sub">At or below reorder point</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <!-- Alerts -->
+        <div class="section">
+          <div class="section-header">
+            <span class="section-title">Active Alerts</span>
+          </div>
+          <div class="section-body" id="alerts-container">
+            <div class="empty-state">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Recent activity -->
+        <div class="section">
+          <div class="section-header">
+            <span class="section-title">Automation Activity</span>
+          </div>
+          <div class="section-body" id="activity-container">
+            <div class="empty-state">Loading…</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Financials -->
+      <div class="section">
+        <div class="section-header"><span class="section-title">Monthly Financials</span></div>
+        <div class="section-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px" id="financials-grid">
+            <div class="empty-state" style="grid-column:1/-1">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ORDERS ═══════════════════════════════════════════════ -->
+    <div id="page-orders" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Orders & Fulfilment</div>
+          <div class="page-subtitle">Process orders, update tracking, trigger COA delivery</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" onclick="syncOrders()">Sync from WooCommerce</button>
+          <select class="form-select" style="width:140px" id="order-status-filter" onchange="loadOrders()">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-body table-wrap" id="orders-table-wrap">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ INVENTORY ════════════════════════════════════════════ -->
+    <div id="page-inventory" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Inventory</div>
+          <div class="page-subtitle">Track stock levels and lot numbers</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" onclick="syncInventory()">Sync from WooCommerce</button>
+          <button class="btn btn-primary" onclick="openAddInventoryModal()">+ Add Item</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-body table-wrap" id="inventory-table-wrap">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ACCOUNTING ═══════════════════════════════════════════ -->
+    <div id="page-accounting" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Accounting & Tax</div>
+          <div class="page-subtitle">Sales, expenses, and BAS reporting for {{ currency }}</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" onclick="openExpenseModal()">+ Record Expense</button>
+          <button class="btn btn-primary" onclick="loadBAS()">Generate BAS</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('acct','summary',this)">Summary</div>
+        <div class="tab" onclick="switchTab('acct','bas',this)">BAS Report</div>
+        <div class="tab" onclick="switchTab('acct','entries',this)">All Entries</div>
+      </div>
+      <div id="acct-summary" class="tab-pane active">
+        <div id="acct-summary-content"><div class="empty-state">Loading…</div></div>
+      </div>
+      <div id="acct-bas" class="tab-pane">
+        <div id="bas-content"><div class="empty-state">Click "Generate BAS" to load the current quarter.</div></div>
+      </div>
+      <div id="acct-entries" class="tab-pane">
+        <div id="entries-content"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ EMAILS ════════════════════════════════════════════════ -->
+    <div id="page-emails" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Customer Communications</div>
+          <div class="page-subtitle">Automated email flows — powered by your SMTP server (no 3rd-party)</div>
+        </div>
+      </div>
+      <div class="tier-grid">
+        <div class="tier-card">
+          <span class="tier-badge tier-2">AUTOMATED</span>
+          <div class="tier-title">Welcome Email</div>
+          <div class="tier-desc">Sent automatically when a new customer account is created</div>
+        </div>
+        <div class="tier-card">
+          <span class="tier-badge tier-2">AUTOMATED</span>
+          <div class="tier-title">Order Confirmation</div>
+          <div class="tier-desc">Sent immediately when an order is placed via WooCommerce webhook</div>
+        </div>
+        <div class="tier-card">
+          <span class="tier-badge tier-2">AUTOMATED</span>
+          <div class="tier-title">Shipping Notification</div>
+          <div class="tier-desc">Sent when you mark an order as shipped and enter a tracking number</div>
+        </div>
+        <div class="tier-card">
+          <span class="tier-badge tier-2">AUTOMATED</span>
+          <div class="tier-title">Post-Purchase Check-in</div>
+          <div class="tier-desc">Sent after order completion to gather feedback</div>
+        </div>
+        <div class="tier-card">
+          <span class="tier-badge tier-2">AUTOMATED</span>
+          <div class="tier-title">Review Request</div>
+          <div class="tier-desc">Sent 7 days after delivery to request a product review</div>
+        </div>
+        <div class="tier-card">
+          <span class="tier-badge tier-1">WITH COA</span>
+          <div class="tier-title">COA Delivery</div>
+          <div class="tier-desc">Certificate of Analysis attached automatically when order ships</div>
+        </div>
+      </div>
+      <div class="section" style="margin-top:20px">
+        <div class="section-header"><span class="section-title">Email Log (recent 20)</span></div>
+        <div class="section-body table-wrap" id="email-log-wrap">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SUPPORT ═══════════════════════════════════════════════ -->
+    <div id="page-support" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Support Tickets</div>
+          <div class="page-subtitle">Claude AI auto-responds and classifies every inbound ticket</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-primary" onclick="openNewTicketModal()">+ New Ticket</button>
+          <select class="form-select" style="width:140px" id="ticket-status-filter" onchange="loadTickets()">
+            <option value="open">Open</option>
+            <option value="">All</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-body table-wrap" id="tickets-table-wrap">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ COMPLIANCE ════════════════════════════════════════════ -->
+    <div id="page-compliance" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Compliance & Documentation</div>
+          <div class="page-subtitle">COA files, lot tracking, and automated database backups</div>
+        </div>
+        <button class="btn btn-primary" onclick="runBackup()">Run Backup Now</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div class="section">
+          <div class="section-header"><span class="section-title">COA Files</span>
+            <span class="text-sm text-muted">Drop PDFs into the <code>coa_files/</code> folder</span>
+          </div>
+          <div class="section-body" id="coa-list"><div class="empty-state">Loading…</div></div>
+        </div>
+        <div class="section">
+          <div class="section-header"><span class="section-title">Inventory Lot Numbers</span></div>
+          <div class="section-body table-wrap" id="lot-table-wrap"><div class="empty-state">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MARKETING ════════════════════════════════════════════ -->
+    <div id="page-marketing" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Marketing & Social Media</div>
+          <div class="page-subtitle">AI-generated posts across all social platforms</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" onclick="flushPosts()">Publish Due Posts</button>
+          <button class="btn btn-primary" onclick="openGenerateModal()">+ Generate Post</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-header">
+          <span class="section-title">Scheduled & Recent Posts</span>
+          <select class="form-select btn-sm" style="width:130px" id="post-status-filter" onchange="loadPosts()">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="posted">Posted</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <div class="section-body table-wrap" id="posts-table-wrap">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ALL AUTOMATIONS ══════════════════════════════════════ -->
+    <div id="page-automations" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">All Automations</div>
+          <div class="page-subtitle">Enable/disable and manually trigger any automation</div>
+        </div>
+      </div>
+      <div class="tier-grid" id="automations-grid">
+        <div class="empty-state" style="grid-column:1/-1">Loading…</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Modals ──────────────────────────────────────────────────── -->
+
+<!-- Ship Order Modal -->
+<div class="modal-overlay" id="modal-ship">
+  <div class="modal">
+    <div class="modal-title">Mark Order as Shipped</div>
+    <input type="hidden" id="ship-order-id">
+    <div class="form-group">
+      <label class="form-label">Tracking Number</label>
+      <input type="text" class="form-input" id="ship-tracking" placeholder="e.g. 1Z999AA10123456784">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-ship')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitShip()">Mark Shipped & Send Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Ticket Modal -->
+<div class="modal-overlay" id="modal-ticket">
+  <div class="modal">
+    <div class="modal-title">New Support Ticket</div>
+    <div class="form-group">
+      <label class="form-label">Customer Email</label>
+      <input type="email" class="form-input" id="ticket-email" placeholder="customer@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Customer Name (optional)</label>
+      <input type="text" class="form-input" id="ticket-name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subject</label>
+      <input type="text" class="form-input" id="ticket-subject">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Message</label>
+      <textarea class="form-textarea" id="ticket-message" rows="4"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-ticket')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTicket()">Create & Auto-Respond</button>
+    </div>
+  </div>
+</div>
+
+<!-- Respond Ticket Modal -->
+<div class="modal-overlay" id="modal-respond">
+  <div class="modal">
+    <div class="modal-title">Respond to Ticket</div>
+    <input type="hidden" id="respond-ticket-id">
+    <div class="form-group">
+      <label class="form-label">Auto-response (pre-filled by Claude AI)</label>
+      <textarea class="form-textarea" id="respond-text" rows="6"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-respond')">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="closeTicket()">Close Without Reply</button>
+      <button class="btn btn-primary" onclick="submitRespond()">Send & Resolve</button>
+    </div>
+  </div>
+</div>
+
+<!-- Record Expense Modal -->
+<div class="modal-overlay" id="modal-expense">
+  <div class="modal">
+    <div class="modal-title">Record Expense</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Amount ({{ currency }}, inc. GST)</label>
+        <input type="number" class="form-input" id="exp-amount" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="exp-category">
+          <option value="supplies">Supplies / COGS</option>
+          <option value="shipping_cost">Shipping Costs</option>
+          <option value="marketing">Marketing</option>
+          <option value="software">Software</option>
+          <option value="lab_testing">Lab Testing / COAs</option>
+          <option value="general">General</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <input type="text" class="form-input" id="exp-description">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-expense')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitExpense()">Record Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Post Modal -->
+<div class="modal-overlay" id="modal-generate">
+  <div class="modal">
+    <div class="modal-title">Generate Social Media Post</div>
+    <div class="form-group">
+      <label class="form-label">Topic / Theme</label>
+      <input type="text" class="form-input" id="gen-topic" placeholder="e.g. BPC-157 for gut health research">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Platform</label>
+        <select class="form-select" id="gen-platform">
+          <option value="linkedin">LinkedIn</option>
+          <option value="instagram">Instagram</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="facebook">Facebook</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Content Style</label>
+        <select class="form-select" id="gen-type">
+          <option value="educational">Educational</option>
+          <option value="promotional">Promotional</option>
+          <option value="tip">Research Tip</option>
+          <option value="announcement">Announcement</option>
+          <option value="behind_the_scenes">Behind the Scenes</option>
+        </select>
+      </div>
+    </div>
+    <div id="gen-result" style="display:none" class="section-body" style="background:var(--surface2);border-radius:6px;padding:12px;margin-top:8px;font-size:13px;white-space:pre-wrap;color:var(--muted)"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-generate')">Close</button>
+      <button class="btn btn-primary" id="gen-btn" onclick="submitGeneratePost()">Generate & Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Inventory Modal -->
+<div class="modal-overlay" id="modal-inventory">
+  <div class="modal">
+    <div class="modal-title">Add / Update Inventory Item</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SKU</label>
+        <input type="text" class="form-input" id="inv-sku">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lot Number</label>
+        <input type="text" class="form-input" id="inv-lot">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Product Name</label>
+      <input type="text" class="form-input" id="inv-name">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Quantity</label>
+        <input type="number" class="form-input" id="inv-qty" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reorder Point</label>
+        <input type="number" class="form-input" id="inv-reorder" value="10" min="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-inventory')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitInventory()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── State ──────────────────────────────────────────────────────── */
+const CURRENCY = '{{ currency }}';
+let dashData = {};
+
+/* ── Navigation ─────────────────────────────────────────────────── */
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+  // Lazy-load page data
+  if (id === 'overview')    loadDashboard();
+  if (id === 'orders')      loadOrders();
+  if (id === 'inventory')   loadInventory();
+  if (id === 'accounting')  loadAccounting();
+  if (id === 'support')     loadTickets();
+  if (id === 'emails')      loadEmailLog();
+  if (id === 'compliance')  { loadCOAs(); loadLots(); }
+  if (id === 'marketing')   loadPosts();
+  if (id === 'automations') loadAutomations();
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────── */
+function switchTab(group, tab, el) {
+  document.querySelectorAll(`[id^="${group}-"]`).forEach(p => p.classList.remove('active'));
+  el.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(group + '-' + tab).classList.add('active');
+  el.classList.add('active');
+}
+
+/* ── Utils ───────────────────────────────────────────────────────── */
+const api = (path, opts={}) => fetch('/api' + path, { headers: {'Content-Type':'application/json'}, ...opts }).then(r => r.json());
+const fmt = n => new Intl.NumberFormat('en-AU',{style:'currency',currency:CURRENCY}).format(n||0);
+const fmtDate = s => s ? new Date(s).toLocaleString('en-AU',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+
+function statusBadge(s) {
+  const map = {
+    pending:'yellow', processing:'blue', shipped:'purple', completed:'green',
+    open:'yellow', resolved:'green', closed:'gray',
+    posted:'green', failed:'red', success:'green', error:'red'
+  };
+  return `<span class="badge badge-${map[s]||'gray'}">${s||'?'}</span>`;
+}
+
+/* ── Modals ──────────────────────────────────────────────────────── */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+/* ── Dashboard ───────────────────────────────────────────────────── */
+async function loadDashboard() {
+  const res = await api('/dashboard');
+  if (!res.ok) return;
+  const d = res.data;
+  dashData = d;
+  document.getElementById('kpi-orders').textContent  = d.orders_today ?? 0;
+  document.getElementById('kpi-revenue').textContent = fmt(d.revenue_today);
+  document.getElementById('kpi-tickets').textContent = d.open_tickets ?? 0;
+  document.getElementById('kpi-stock').textContent   = d.low_stock_items ?? 0;
+  renderAlerts(d.alerts || []);
+  renderActivity(d.recent_runs || []);
+  renderFinancials(d.financials || {});
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById('alerts-container');
+  if (!alerts.length) { el.innerHTML = '<div class="empty-state">No active alerts ✓</div>'; return; }
+  el.innerHTML = alerts.map(a => `
+    <div class="alert alert-${a.level==='critical'?'critical':a.level==='info'?'info':'warning'}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ${a.message}
+    </div>`).join('');
+}
+
+function renderActivity(runs) {
+  const el = document.getElementById('activity-container');
+  if (!runs.length) { el.innerHTML = '<div class="empty-state">No activity yet</div>'; return; }
+  el.innerHTML = runs.map(r => `
+    <div class="activity-item">
+      <div class="activity-dot ${r.status}"></div>
+      <div>
+        <div class="activity-text"><strong>${r.automation_name}</strong> — ${r.message||''}</div>
+        <div class="activity-meta">${fmtDate(r.ran_at)}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderFinancials(f) {
+  const el = document.getElementById('financials-grid');
+  el.innerHTML = `
+    <div class="kpi-card green" style="margin:0"><div class="kpi-label">Month Revenue</div><div class="kpi-value">${fmt(f.month_revenue)}</div></div>
+    <div class="kpi-card red"   style="margin:0"><div class="kpi-label">Month Expenses</div><div class="kpi-value">${fmt(f.month_expenses)}</div></div>
+    <div class="kpi-card teal"  style="margin:0"><div class="kpi-label">Month Profit</div><div class="kpi-value">${fmt(f.month_profit)}</div></div>
+    <div class="kpi-card yellow"style="margin:0"><div class="kpi-label">GST Payable (QTR)</div><div class="kpi-value">${fmt(f.quarter_gst_payable)}</div></div>`;
+}
+
+/* ── Orders ──────────────────────────────────────────────────────── */
+async function loadOrders() {
+  const status = document.getElementById('order-status-filter')?.value || '';
+  const res = await api('/orders' + (status ? '?status='+status : ''));
+  const el = document.getElementById('orders-table-wrap');
+  if (!res.ok || !res.data.length) { el.innerHTML = '<div class="empty-state">No orders found</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>WC Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>${res.data.map(o => `
+      <tr>
+        <td>${o.id}</td>
+        <td><span class="tag">#${o.wc_order_id||'—'}</span></td>
+        <td><div>${o.customer_name||'—'}</div><div class="text-sm text-muted">${o.customer_email||''}</div></td>
+        <td>${fmt(o.total)}</td>
+        <td>${statusBadge(o.status)}</td>
+        <td class="text-muted">${fmtDate(o.created_at)}</td>
+        <td>
+          ${o.status !== 'shipped' && o.status !== 'completed' ?
+            `<button class="btn btn-secondary btn-sm" onclick="openShipModal(${o.id})">Ship</button>` : ''}
+          ${o.tracking_number ? `<span class="tag" style="margin-left:4px">${o.tracking_number}</span>` : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function syncOrders() {
+  const res = await api('/orders/sync', {method:'POST'});
+  alert(res.ok ? `Synced ${res.data?.synced||0} orders from WooCommerce` : 'Sync failed: ' + res.error);
+  loadOrders();
+}
+
+function openShipModal(orderId) {
+  document.getElementById('ship-order-id').value = orderId;
+  document.getElementById('ship-tracking').value = '';
+  openModal('modal-ship');
+}
+
+async function submitShip() {
+  const id = document.getElementById('ship-order-id').value;
+  const tracking = document.getElementById('ship-tracking').value;
+  const res = await api('/orders/'+id+'/ship', {method:'POST', body:JSON.stringify({tracking_number:tracking})});
+  if (res.ok) { closeModal('modal-ship'); loadOrders(); }
+  else alert('Error: ' + res.error);
+}
+
+/* ── Inventory ────────────────────────────────────────────────────── */
+async function loadInventory() {
+  const res = await api('/inventory');
+  const el = document.getElementById('inventory-table-wrap');
+  if (!res.ok || !res.data.length) { el.innerHTML = '<div class="empty-state">No inventory items. Sync from WooCommerce or add manually.</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>SKU</th><th>Product</th><th>Lot #</th><th>Stock</th><th>Reorder At</th><th>Status</th><th></th></tr></thead>
+    <tbody>${res.data.map(i => {
+      const low = i.quantity <= i.reorder_point;
+      const badge = i.quantity === 0 ? 'badge-red' : low ? 'badge-yellow' : 'badge-green';
+      const label = i.quantity === 0 ? 'Out of stock' : low ? 'Low stock' : 'In stock';
+      return `<tr>
+        <td><span class="tag">${i.sku}</span></td>
+        <td>${i.name}</td>
+        <td>${i.lot_number||<span class="text-muted">—</span>}</td>
+        <td style="font-weight:600">${i.quantity}</td>
+        <td class="text-muted">${i.reorder_point}</td>
+        <td><span class="badge ${badge}">${label}</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="openLotModal('${i.sku}','${i.lot_number||''}')">Set Lot</button></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+async function syncInventory() {
+  const res = await api('/inventory/sync', {method:'POST'});
+  alert(res.ok ? `Synced ${res.data?.synced||0} products` : 'Sync failed: ' + res.error);
+  loadInventory();
+}
+
+function openAddInventoryModal() {
+  ['inv-sku','inv-name','inv-lot'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('inv-qty').value = '0';
+  document.getElementById('inv-reorder').value = '10';
+  openModal('modal-inventory');
+}
+
+async function submitInventory() {
+  const body = {
+    sku: document.getElementById('inv-sku').value,
+    name: document.getElementById('inv-name').value,
+    lot_number: document.getElementById('inv-lot').value,
+    quantity: parseInt(document.getElementById('inv-qty').value)||0,
+    reorder_point: parseInt(document.getElementById('inv-reorder').value)||10,
+  };
+  // Use the lot endpoint for existing, or a simple fetch for new
+  const res = await fetch('/api/inventory/'+encodeURIComponent(body.sku)+'/lot', {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({lot_number:body.lot_number})
+  }).then(r=>r.json());
+  closeModal('modal-inventory');
+  loadInventory();
+}
+
+function openLotModal(sku, lot) {
+  document.getElementById('inv-sku').value = sku;
+  document.getElementById('inv-lot').value = lot;
+  document.getElementById('inv-name').value = '';
+  document.getElementById('inv-qty').value = '';
+  openModal('modal-inventory');
+}
+
+/* ── Accounting ───────────────────────────────────────────────────── */
+async function loadAccounting() {
+  const res = await api('/accounting');
+  const el = document.getElementById('acct-summary-content');
+  if (!res.ok) { el.innerHTML='<div class="empty-state">Error loading accounting data</div>'; return; }
+  const d = res.data;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+      <div class="kpi-card green" style="margin:0"><div class="kpi-label">Total Sales (ex GST)</div><div class="kpi-value">${fmt(d.sales)}</div></div>
+      <div class="kpi-card red"   style="margin:0"><div class="kpi-label">Total Expenses (ex GST)</div><div class="kpi-value">${fmt(d.expenses)}</div></div>
+      <div class="kpi-card teal"  style="margin:0"><div class="kpi-label">Net Profit</div><div class="kpi-value">${fmt(d.profit)}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div class="kpi-card yellow" style="margin:0"><div class="kpi-label">GST Collected</div><div class="kpi-value">${fmt(d.gst_collected)}</div></div>
+      <div class="kpi-card yellow" style="margin:0"><div class="kpi-label">GST Paid (Inputs)</div><div class="kpi-value">${fmt(d.gst_paid)}</div></div>
+      <div class="kpi-card teal"   style="margin:0"><div class="kpi-label">Net GST Payable</div><div class="kpi-value">${fmt(d.gst_net_payable)}</div></div>
+    </div>`;
+
+  const entries = d.entries || [];
+  const eEl = document.getElementById('entries-content');
+  if (!entries.length) { eEl.innerHTML='<div class="empty-state">No entries yet</div>'; return; }
+  eEl.innerHTML = `<table>
+    <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount (ex GST)</th><th>GST</th></tr></thead>
+    <tbody>${entries.slice().reverse().map(e=>`
+      <tr>
+        <td class="text-muted">${e.entry_date}</td>
+        <td>${statusBadge(e.entry_type==='sale'?'posted':'pending')}<span style="margin-left:4px">${e.entry_type}</span></td>
+        <td><span class="tag">${e.category||'—'}</span></td>
+        <td class="truncate">${e.description||'—'}</td>
+        <td style="font-weight:600">${fmt(e.amount)}</td>
+        <td class="text-muted">${fmt(e.gst_amount)}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function loadBAS() {
+  const res = await api('/accounting/bas');
+  const el = document.getElementById('bas-content');
+  if (!res.ok) { el.innerHTML='<div class="empty-state">Error loading BAS</div>'; return; }
+  const b = res.data;
+  el.innerHTML = `
+    <div style="max-width:560px">
+      <div class="section" style="margin-bottom:16px">
+        <div class="section-header"><span class="section-title">Business Activity Statement</span></div>
+        <div class="section-body">
+          <p class="text-muted text-sm mb-4">Period: ${b.period_start} → ${b.period_end}</p>
+          <table style="width:100%">
+            <tr><td style="padding:8px 0;color:var(--muted)">G1 — Total Sales (inc. GST)</td><td style="text-align:right;font-weight:600">${fmt(b.g1_total_sales)}</td></tr>
+            <tr><td style="padding:8px 0;color:var(--muted)">1A — GST on Sales</td><td style="text-align:right;font-weight:600">${fmt(b['1a_gst_on_sales'])}</td></tr>
+            <tr><td style="padding:8px 0;color:var(--muted)">1B — GST Credits (Purchases)</td><td style="text-align:right;font-weight:600">${fmt(b['1b_gst_on_purchases'])}</td></tr>
+            <tr style="border-top:1px solid var(--border)"><td style="padding:10px 0;font-weight:700">Net GST Payable / (Refundable)</td><td style="text-align:right;font-size:20px;font-weight:700;color:var(--teal-lt)">${fmt(b.net_gst_payable)}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openExpenseModal() { openModal('modal-expense'); }
+async function submitExpense() {
+  const res = await api('/accounting/expense', {method:'POST', body: JSON.stringify({
+    amount: parseFloat(document.getElementById('exp-amount').value),
+    description: document.getElementById('exp-description').value,
+    category: document.getElementById('exp-category').value,
+    gst_included: true,
+  })});
+  if (res.ok) { closeModal('modal-expense'); loadAccounting(); }
+  else alert('Error: ' + res.error);
+}
+
+/* ── Support ──────────────────────────────────────────────────────── */
+async function loadTickets() {
+  const status = document.getElementById('ticket-status-filter')?.value || 'open';
+  const res = await api('/tickets' + (status ? '?status='+status : ''));
+  const el = document.getElementById('tickets-table-wrap');
+  if (!res.ok || !res.data.length) { el.innerHTML='<div class="empty-state">No tickets found</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Customer</th><th>Subject</th><th>Category</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>${res.data.map(t=>`
+      <tr>
+        <td>${t.id}</td>
+        <td><div>${t.customer_name||'—'}</div><div class="text-sm text-muted">${t.customer_email}</div></td>
+        <td class="truncate">${t.subject}</td>
+        <td><span class="tag">${t.category||'other'}</span></td>
+        <td>${statusBadge(t.status)}</td>
+        <td class="text-muted">${fmtDate(t.created_at)}</td>
+        <td>
+          ${t.status==='open'?`<button class="btn btn-primary btn-sm" onclick="openRespondModal(${t.id},'${(t.auto_response||'').replace(/'/g,"\\'")}')">Respond</button>`:''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function openNewTicketModal() { openModal('modal-ticket'); }
+async function submitTicket() {
+  const res = await api('/tickets', {method:'POST', body: JSON.stringify({
+    customer_email: document.getElementById('ticket-email').value,
+    customer_name: document.getElementById('ticket-name').value,
+    subject: document.getElementById('ticket-subject').value,
+    message: document.getElementById('ticket-message').value,
+  })});
+  if (res.ok) { closeModal('modal-ticket'); loadTickets(); }
+  else alert('Error: ' + res.error);
+}
+
+function openRespondModal(id, autoResponse) {
+  document.getElementById('respond-ticket-id').value = id;
+  document.getElementById('respond-text').value = autoResponse || '';
+  openModal('modal-respond');
+}
+
+async function submitRespond() {
+  const id = document.getElementById('respond-ticket-id').value;
+  const text = document.getElementById('respond-text').value;
+  const res = await api('/tickets/'+id+'/respond', {method:'POST', body:JSON.stringify({response:text})});
+  if (res.ok) { closeModal('modal-respond'); loadTickets(); }
+  else alert('Error: ' + res.error);
+}
+
+async function closeTicket() {
+  const id = document.getElementById('respond-ticket-id').value;
+  await api('/tickets/'+id+'/close', {method:'POST', body:JSON.stringify({})});
+  closeModal('modal-respond');
+  loadTickets();
+}
+
+/* ── Email log ────────────────────────────────────────────────────── */
+async function loadEmailLog() {
+  // Use accounting entries endpoint as proxy — in a real app we'd have /api/emails
+  document.getElementById('email-log-wrap').innerHTML = '<div class="empty-state">Email log stored in database. Check automation activity feed for details.</div>';
+}
+
+/* ── Compliance ────────────────────────────────────────────────────── */
+async function loadCOAs() {
+  const res = await api('/compliance/coas');
+  const el = document.getElementById('coa-list');
+  if (!res.ok || !res.data.length) {
+    el.innerHTML = '<div class="empty-state">No COA files found.<br>Drop PDF files into the <code>coa_files/</code> folder.<br>Name format: <code>SKU_LOTNUMBER.pdf</code></div>';
+    return;
+  }
+  el.innerHTML = res.data.map(f=>`
+    <div class="flex items-center gap-2" style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal-lt)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
+      <span style="flex:1;font-size:13px">${f.name}</span>
+      <span class="text-muted text-sm">${f.size_kb}KB</span>
+    </div>`).join('');
+}
+
+async function loadLots() {
+  const res = await api('/inventory');
+  const el = document.getElementById('lot-table-wrap');
+  if (!res.ok || !res.data.length) { el.innerHTML='<div class="empty-state">No inventory items</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>SKU</th><th>Product</th><th>Lot #</th><th></th></tr></thead>
+    <tbody>${res.data.map(i=>`
+      <tr>
+        <td><span class="tag">${i.sku}</span></td>
+        <td>${i.name}</td>
+        <td>${i.lot_number||'<span class="text-muted">Not set</span>'}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="openLotModal('${i.sku}','${i.lot_number||''}')">Edit</button></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function runBackup() {
+  const btn = event.target;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Backing up…';
+  const res = await api('/compliance/backup', {method:'POST'});
+  btn.disabled = false; btn.textContent = 'Run Backup Now';
+  alert(res.ok && res.data?.success ? `Backup saved: ${res.data.file} (${res.data.size_kb}KB)` : 'Backup failed: ' + (res.data?.error || res.error));
+}
+
+/* ── Marketing ────────────────────────────────────────────────────── */
+async function loadPosts() {
+  const status = document.getElementById('post-status-filter')?.value || '';
+  const res = await api('/posts' + (status ? '?status='+status : ''));
+  const el = document.getElementById('posts-table-wrap');
+  if (!res.ok || !res.data.length) { el.innerHTML='<div class="empty-state">No posts found. Generate one to get started.</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Platform</th><th>Topic</th><th>Content</th><th>Status</th><th>Scheduled</th></tr></thead>
+    <tbody>${res.data.map(p=>`
+      <tr>
+        <td>${p.id}</td>
+        <td><span class="tag">${p.platform}</span></td>
+        <td>${p.topic||'—'}</td>
+        <td class="truncate">${p.content}</td>
+        <td>${statusBadge(p.status)}</td>
+        <td class="text-muted">${fmtDate(p.scheduled_at)}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function flushPosts() {
+  const res = await api('/posts/flush', {method:'POST'});
+  alert(res.ok ? `Published ${res.data?.flushed||0} posts` : 'Error: ' + res.error);
+  loadPosts();
+}
+
+function openGenerateModal() { openModal('modal-generate'); }
+async function submitGeneratePost() {
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Generating…';
+  const res = await api('/posts/generate', {method:'POST', body: JSON.stringify({
+    topic: document.getElementById('gen-topic').value,
+    platform: document.getElementById('gen-platform').value,
+    content_type: document.getElementById('gen-type').value,
+  })});
+  btn.disabled = false; btn.textContent = 'Generate & Schedule';
+  const result = document.getElementById('gen-result');
+  result.style.display = 'block';
+  result.textContent = res.ok ? (res.data?.response || 'Done!') : 'Error: ' + res.error;
+  loadPosts();
+}
+
+/* ── All Automations ──────────────────────────────────────────────── */
+const AUTOMATION_META = {
+  order_processing:    { tier:1, title:'Order Processing',     desc:'Auto-import and process WooCommerce orders' },
+  inventory_sync:      { tier:1, title:'Inventory Sync',       desc:'Pull stock levels from WooCommerce' },
+  accounting_record:   { tier:1, title:'Accounting Recording', desc:'Auto-record sales and calculate GST' },
+  welcome_email:       { tier:2, title:'Welcome Email',        desc:'Send welcome email to new customers' },
+  abandoned_cart_email:{ tier:2, title:'Abandoned Cart',       desc:'Email customers who left items in cart' },
+  post_purchase_email: { tier:2, title:'Post-Purchase Email',  desc:'Follow up after order completion' },
+  review_request_email:{ tier:2, title:'Review Request',       desc:'Request a review 7 days post-delivery' },
+  support_auto_respond:{ tier:2, title:'Support Auto-Response',desc:'Claude AI classifies and responds to tickets' },
+  coa_delivery:        { tier:3, title:'COA Delivery',         desc:'Auto-attach and email COA when order ships' },
+  backup:              { tier:3, title:'Database Backup',      desc:'Automated SQLite backup to local directory' },
+  social_marketing:    { tier:3, title:'Social Marketing',     desc:'Publish scheduled social media posts' },
+  low_stock_alert:     { tier:4, title:'Low Stock Alert',      desc:'Email alert when stock hits reorder point' },
+};
+
+const TIER_LABEL = {1:'Tier 1 — Day 1', 2:'Tier 2 — Week 1-2', 3:'Tier 3 — Month 1-2', 4:'Tier 4 — Connective Tissue'};
+
+async function loadAutomations() {
+  const res = await api('/automations');
+  const el = document.getElementById('automations-grid');
+  if (!res.ok) { el.innerHTML='<div class="empty-state">Error loading automations</div>'; return; }
+  const rows = res.data;
+
+  // Group by tier
+  const byTier = {1:[], 2:[], 3:[], 4:[]};
+  rows.forEach(r => {
+    const meta = AUTOMATION_META[r.name] || {tier:4, title:r.name, desc:''};
+    byTier[meta.tier].push({...r, ...meta});
+  });
+
+  el.innerHTML = [1,2,3,4].map(tier => {
+    const items = byTier[tier];
+    if (!items.length) return '';
+    return `<div class="tier-card">
+      <span class="tier-badge tier-${tier}">${TIER_LABEL[tier]}</span>
+      <div class="tier-automations">${items.map(a => `
+        <div class="auto-row">
+          <div>
+            <div class="auto-name font-bold">${a.title}</div>
+            <div class="auto-meta">${a.desc}</div>
+            ${a.last_run ? `<div class="auto-meta">Last run: ${fmtDate(a.last_run)} · ${a.run_count} times</div>` : ''}
+          </div>
+          <div class="auto-actions">
+            <button class="btn btn-secondary btn-sm" onclick="runAutomation('${a.name}')">Run</button>
+            <label class="toggle">
+              <input type="checkbox" ${a.enabled?'checked':''} onchange="toggleAutomation('${a.name}',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleAutomation(name, enabled) {
+  await api('/automations/'+name+'/toggle', {method:'POST', body:JSON.stringify({enabled})});
+}
+
+async function runAutomation(name) {
+  const res = await api('/automations/'+name+'/run', {method:'POST'});
+  alert(res.ok ? `Result: ${res.data?.result||'Done'}` : 'Error: ' + res.error);
+  loadAutomations();
+}
+
+/* ── Init ────────────────────────────────────────────────────────── */
+loadDashboard();
+</script>
+</body>
+</html>

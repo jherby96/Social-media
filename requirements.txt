@@ -5,3 +5,4 @@ atproto>=0.0.54
 python-dotenv>=1.0.0
 click>=8.1.0
 apscheduler>=3.10.0
+flask>=3.0.0
