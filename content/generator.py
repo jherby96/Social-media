@@ -2,12 +2,24 @@
 from typing import Optional
 import anthropic
 import config
-from .templates import PLATFORM_PROMPTS, CONTENT_TYPES
+from .templates import PLATFORM_PROMPTS, CONTENT_TYPES, COMPLIANCE_RULES, INSTAGRAM_HASHTAG_SETS
 
 
 class ContentGenerator:
     def __init__(self):
         self._client = anthropic.Anthropic(api_key=config.agent.anthropic_api_key)
+
+    def _build_system(self, platform: str) -> str:
+        platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS["instagram"])
+        return (
+            f"You are an expert social media manager for {config.agent.brand_name}, "
+            f"a peptide research company.\n"
+            f"Brand voice: {config.agent.brand_voice}\n"
+            f"Core topics: {config.agent.brand_topics}\n\n"
+            f"Platform-specific rules for {platform.capitalize()}:\n{platform_prompt}\n\n"
+            f"{COMPLIANCE_RULES}\n\n"
+            "Return ONLY the post text. No labels, no explanations, no quotes around the output."
+        )
 
     def generate(
         self,
@@ -18,16 +30,7 @@ class ContentGenerator:
         existing_content: Optional[str] = None,
     ) -> str:
         """Generate platform-optimised content for a given topic."""
-        platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS["linkedin"])
         content_brief = CONTENT_TYPES.get(content_type, CONTENT_TYPES["educational"]).format(topic=topic)
-
-        system = (
-            f"You are an expert social media manager for {config.agent.brand_name}.\n"
-            f"Brand voice: {config.agent.brand_voice}\n"
-            f"Core topics: {config.agent.brand_topics}\n\n"
-            f"Platform-specific rules for {platform.capitalize()}:\n{platform_prompt}\n\n"
-            "Return ONLY the post text. No labels, no explanations, no quotes around the output."
-        )
 
         user_parts = [f"Create a {content_type} post about: {topic}\n\nContent brief: {content_brief}"]
         if existing_content:
@@ -41,7 +44,7 @@ class ContentGenerator:
             system=[
                 {
                     "type": "text",
-                    "text": system,
+                    "text": self._build_system(platform),
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
@@ -56,18 +59,17 @@ class ContentGenerator:
         content_type: str = "educational",
         extra_instructions: Optional[str] = None,
     ) -> dict[str, str]:
-        """Generate platform-specific versions of the same post in one call using a two-step approach."""
+        """Generate platform-specific versions of the same post — Instagram first as the anchor."""
         results: dict[str, str] = {}
 
-        # Generate the long-form anchor first (LinkedIn or Facebook), then adapt
+        # Prefer Instagram as anchor since that's the primary platform
         anchor_platform = next(
-            (p for p in ["linkedin", "facebook"] if p in platforms),
+            (p for p in ["instagram", "linkedin", "facebook"] if p in platforms),
             platforms[0],
         )
         anchor_content = self.generate(topic, anchor_platform, content_type, extra_instructions)
         results[anchor_platform] = anchor_content
 
-        # Adapt the anchor for each remaining platform
         for platform in platforms:
             if platform == anchor_platform:
                 continue
@@ -81,7 +83,7 @@ class ContentGenerator:
         return results
 
     def generate_content_plan(self, topic: str, num_posts: int = 5) -> list[dict]:
-        """Ask Claude to build a content calendar plan."""
+        """Ask Claude to build a content calendar plan for the peptide research account."""
         response = self._client.messages.create(
             model=config.agent.model,
             max_tokens=2048,
@@ -89,9 +91,11 @@ class ContentGenerator:
                 {
                     "type": "text",
                     "text": (
-                        f"You are an expert social media strategist for {config.agent.brand_name}.\n"
+                        f"You are an expert social media strategist for {config.agent.brand_name}, "
+                        f"a peptide research company focused on Instagram.\n"
                         f"Brand voice: {config.agent.brand_voice}\n"
-                        f"Core topics: {config.agent.brand_topics}"
+                        f"Core topics: {config.agent.brand_topics}\n\n"
+                        f"{COMPLIANCE_RULES}"
                     ),
                     "cache_control": {"type": "ephemeral"},
                 }
@@ -100,18 +104,19 @@ class ContentGenerator:
                 {
                     "role": "user",
                     "content": (
-                        f"Create a content plan with {num_posts} post ideas about '{topic}'.\n"
+                        f"Create a content plan with {num_posts} Instagram post ideas about '{topic}'.\n"
+                        "Mix content types: compound_spotlight, research_update, mechanism_explainer, "
+                        "study_breakdown, lab_insight, research_q_and_a.\n"
                         "For each idea output a JSON object on its own line with keys: "
-                        '"title", "content_type", "description", "best_platform".\n'
+                        '"title", "content_type", "description", "suggested_hashtags".\n'
                         "Output ONLY the JSON lines, nothing else."
                     ),
                 }
             ],
         )
         import json
-        lines = response.content[0].text.strip().splitlines()
         plans = []
-        for line in lines:
+        for line in response.content[0].text.strip().splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -121,8 +126,8 @@ class ContentGenerator:
                 pass
         return plans
 
-    def suggest_hashtags(self, topic: str, platform: str, count: int = 10) -> list[str]:
-        """Return a list of relevant hashtags for a topic and platform."""
+    def suggest_hashtags(self, topic: str, platform: str = "instagram", count: int = 12) -> list[str]:
+        """Return a curated list of research-appropriate hashtags for a peptide topic."""
         response = self._client.messages.create(
             model=config.agent.model,
             max_tokens=256,
@@ -130,8 +135,11 @@ class ContentGenerator:
                 {
                     "role": "user",
                     "content": (
-                        f"List {count} highly relevant hashtags for a {platform} post about '{topic}'.\n"
-                        "One hashtag per line. Include the # prefix. No explanations."
+                        f"List {count} highly relevant hashtags for a peptide research {platform} post "
+                        f"about '{topic}'.\n"
+                        "Include a mix of: compound-specific tags, research community tags, and science discovery tags.\n"
+                        "One hashtag per line. Include the # prefix. No explanations.\n"
+                        "Do NOT include generic spam hashtags like #fitness or #health."
                     ),
                 }
             ],
@@ -141,3 +149,37 @@ class ContentGenerator:
             for line in response.content[0].text.strip().splitlines()
             if line.strip().startswith("#")
         ]
+
+    def check_compliance(self, content: str) -> dict:
+        """Review a post for compliance issues before publishing."""
+        response = self._client.messages.create(
+            model=config.agent.model,
+            max_tokens=512,
+            system=[
+                {
+                    "type": "text",
+                    "text": (
+                        "You are a regulatory compliance reviewer for a peptide research company. "
+                        "You check social media posts for violations of research-only compliance rules.\n\n"
+                        f"{COMPLIANCE_RULES}"
+                    ),
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Review this post for compliance issues:\n\n{content}\n\n"
+                        "Output JSON with keys: "
+                        '"compliant" (true/false), "issues" (list of strings), "suggestion" (string or null).\n'
+                        "Output ONLY the JSON, nothing else."
+                    ),
+                }
+            ],
+        )
+        import json
+        try:
+            return json.loads(response.content[0].text.strip())
+        except json.JSONDecodeError:
+            return {"compliant": None, "issues": ["Could not parse compliance review"], "suggestion": None}

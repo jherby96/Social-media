@@ -38,9 +38,9 @@ TOOLS: list[dict] = [
                 },
                 "content_type": {
                     "type": "string",
-                    "enum": ["educational", "promotional", "storytelling", "question",
-                             "tip", "trend", "behind_the_scenes", "announcement",
-                             "motivational", "curated"],
+                    "enum": ["compound_spotlight", "research_update", "mechanism_explainer",
+                             "study_breakdown", "lab_insight", "research_q_and_a",
+                             "compound_comparison", "industry_news", "educational", "safety_protocol"],
                     "description": "Style of content to generate",
                 },
                 "extra_instructions": {
@@ -64,7 +64,13 @@ TOOLS: list[dict] = [
                               "enum": ["twitter", "linkedin", "facebook", "instagram", "bluesky"]},
                     "description": "List of platforms to generate content for",
                 },
-                "content_type": {"type": "string", "default": "educational"},
+                "content_type": {
+                    "type": "string",
+                    "default": "educational",
+                    "enum": ["compound_spotlight", "research_update", "mechanism_explainer",
+                             "study_breakdown", "lab_insight", "research_q_and_a",
+                             "compound_comparison", "industry_news", "educational", "safety_protocol"],
+                },
                 "extra_instructions": {"type": "string"},
             },
             "required": ["topic", "platforms"],
@@ -148,6 +154,32 @@ TOOLS: list[dict] = [
         "name": "flush_scheduled",
         "description": "Manually trigger publishing of all due scheduled posts.",
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "suggest_hashtags",
+        "description": "Suggest research-appropriate hashtags for a peptide topic on Instagram.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "The peptide compound or research topic"},
+                "count": {"type": "integer", "default": 12, "description": "Number of hashtags to suggest"},
+            },
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "check_compliance",
+        "description": (
+            "Review post content for regulatory compliance — checks for medical claims, "
+            "human consumption language, or anything that violates research-only rules."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "The post text to review"},
+            },
+            "required": ["content"],
+        },
     },
 ]
 
@@ -238,6 +270,18 @@ def _execute_tool(tool_name: str, tool_input: dict) -> Any:
         results = sched.flush_due_posts()
         return {"flushed": len(results), "results": results}
 
+    elif tool_name == "suggest_hashtags":
+        tags = generator.suggest_hashtags(
+            topic=tool_input["topic"],
+            platform="instagram",
+            count=tool_input.get("count", 12),
+        )
+        return {"hashtags": tags, "count": len(tags)}
+
+    elif tool_name == "check_compliance":
+        result = generator.check_compliance(tool_input["content"])
+        return result
+
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -249,13 +293,21 @@ class SocialMediaAgent:
     """Agentic loop: accepts natural-language commands and executes them via tools."""
 
     SYSTEM = (
-        f"You are an expert AI social media manager for {config.agent.brand_name}.\n"
+        f"You are an expert AI social media manager for {config.agent.brand_name}, "
+        f"a peptide research company. Your primary platform is Instagram.\n"
         f"Brand voice: {config.agent.brand_voice}\n"
         f"Core topics: {config.agent.brand_topics}\n\n"
-        "You have tools to generate content, publish and schedule posts, and analyse performance. "
-        "Always use the available tools to complete tasks rather than just describing what to do. "
-        "When the user asks you to post or schedule something, actually do it with the tools. "
-        "After using tools, summarise what was done in clear, concise language."
+        "COMPLIANCE (non-negotiable):\n"
+        "- All content is for research purposes only — never suggest human consumption\n"
+        "- Never make medical claims or dosage recommendations for humans\n"
+        "- Always run check_compliance before publishing any post\n"
+        "- If compliance check returns issues, fix the content before publishing\n\n"
+        "WORKFLOW:\n"
+        "- Default platform is instagram unless the user specifies otherwise\n"
+        "- Default content_type is compound_spotlight or educational for peptide topics\n"
+        "- For any publish or schedule request: generate content → check compliance → publish/schedule\n"
+        "- Always use the available tools to complete tasks rather than just describing what to do\n"
+        "- After using tools, summarise what was done in clear, concise language"
     )
 
     def __init__(self):

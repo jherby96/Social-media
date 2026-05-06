@@ -71,21 +71,26 @@ def chat(message: Optional[str]):
 # Content generation
 # ---------------------------------------------------------------------------
 
+CONTENT_TYPES = [
+    "compound_spotlight", "research_update", "mechanism_explainer",
+    "study_breakdown", "lab_insight", "research_q_and_a",
+    "compound_comparison", "industry_news", "educational", "safety_protocol",
+]
+
+
 @cli.command("generate")
 @click.argument("topic")
-@click.option("--platform", "-p", default="linkedin",
+@click.option("--platform", "-p", default="instagram",
               type=click.Choice(["twitter", "linkedin", "facebook", "instagram", "bluesky"]),
-              help="Target platform")
-@click.option("--type", "-t", "content_type", default="educational",
-              type=click.Choice(["educational", "promotional", "storytelling", "question",
-                                 "tip", "trend", "behind_the_scenes", "announcement",
-                                 "motivational", "curated"]),
+              help="Target platform (default: instagram)")
+@click.option("--type", "-t", "content_type", default="compound_spotlight",
+              type=click.Choice(CONTENT_TYPES),
               help="Content style")
 @click.option("--extra", "-e", default=None, help="Extra instructions for the AI")
 @click.option("--all-platforms", "-a", is_flag=True, help="Generate for all configured platforms")
 def generate_content(topic: str, platform: str, content_type: str,
                      extra: Optional[str], all_platforms: bool):
-    """Generate AI content for a topic."""
+    """Generate AI content for a peptide research topic."""
     from content.generator import ContentGenerator
     from platforms import get_available_platforms
 
@@ -114,14 +119,16 @@ def generate_content(topic: str, platform: str, content_type: str,
 
 @cli.command("post")
 @click.argument("topic")
-@click.option("--platform", "-p", required=True,
+@click.option("--platform", "-p", default="instagram",
               type=click.Choice(["twitter", "linkedin", "facebook", "instagram", "bluesky"]))
 @click.option("--content", "-c", default=None, help="Post text (generated if omitted)")
-@click.option("--type", "-t", "content_type", default="educational")
+@click.option("--type", "-t", "content_type", default="compound_spotlight",
+              type=click.Choice(CONTENT_TYPES))
 @click.option("--now", is_flag=True, help="Publish immediately (default: schedule)")
 @click.option("--delay", "-d", default=0, type=int, help="Delay in minutes before publishing")
+@click.option("--skip-compliance", is_flag=True, help="Skip compliance check (not recommended)")
 def post(topic: str, platform: str, content: Optional[str], content_type: str,
-         now: bool, delay: int):
+         now: bool, delay: int, skip_compliance: bool):
     """Generate and publish/schedule a post."""
     from content.generator import ContentGenerator
     from platforms import get_available_platforms
@@ -129,12 +136,25 @@ def post(topic: str, platform: str, content: Optional[str], content_type: str,
     import scheduler as s
 
     st.init_db()
+    generator = ContentGenerator()
 
     if content is None:
         click.echo("Generating content...")
-        generator = ContentGenerator()
         content = generator.generate(topic, platform, content_type)
         click.echo(click.style(f"\n{content}\n", fg="white"))
+
+    if not skip_compliance:
+        click.echo("Running compliance check...")
+        result = generator.check_compliance(content)
+        if not result.get("compliant"):
+            click.echo(click.style("Compliance issues found:", fg="red", bold=True))
+            for issue in result.get("issues", []):
+                click.echo(f"  - {issue}")
+            if result.get("suggestion"):
+                click.echo(click.style(f"\nSuggestion: {result['suggestion']}", fg="yellow"))
+            click.echo(click.style("\nPost NOT published. Fix the content and retry.", fg="red"))
+            sys.exit(1)
+        click.echo(click.style("Compliance check passed.", fg="green"))
 
     if now:
         available = get_available_platforms()
@@ -161,7 +181,8 @@ def post(topic: str, platform: str, content: Optional[str], content_type: str,
 
 @cli.command("crosspost")
 @click.argument("topic")
-@click.option("--type", "-t", "content_type", default="educational")
+@click.option("--type", "-t", "content_type", default="compound_spotlight",
+              type=click.Choice(CONTENT_TYPES))
 @click.option("--extra", "-e", default=None)
 @click.option("--schedule", "-s", is_flag=True, help="Schedule instead of publishing now")
 @click.option("--delay", "-d", default=0, type=int, help="Minutes delay between each platform post")
@@ -209,15 +230,59 @@ def crosspost(topic: str, content_type: str, extra: Optional[str], schedule: boo
 @click.argument("topic")
 @click.option("--count", "-n", default=5, type=int, help="Number of post ideas")
 def content_plan(topic: str, count: int):
-    """Generate a content calendar plan for a topic."""
+    """Generate an Instagram content calendar plan for a peptide research topic."""
     from content.generator import ContentGenerator
     generator = ContentGenerator()
-    click.echo(f"Generating {count} post ideas for '{topic}'...\n")
+    click.echo(f"Generating {count} Instagram post ideas for '{topic}'...\n")
     plan = generator.generate_content_plan(topic, count)
     for i, item in enumerate(plan, 1):
         click.echo(click.style(f"{i}. {item.get('title', 'Untitled')}", fg="bright_blue", bold=True))
-        click.echo(f"   Type: {item.get('content_type', '?')} | Best platform: {item.get('best_platform', '?')}")
-        click.echo(f"   {item.get('description', '')}\n")
+        click.echo(f"   Type: {item.get('content_type', '?')}")
+        click.echo(f"   {item.get('description', '')}")
+        hashtags = item.get("suggested_hashtags", [])
+        if hashtags:
+            tags = hashtags if isinstance(hashtags, str) else " ".join(hashtags)
+            click.echo(f"   Tags: {tags}")
+        click.echo()
+
+
+# ---------------------------------------------------------------------------
+# Hashtags
+# ---------------------------------------------------------------------------
+
+@cli.command("hashtags")
+@click.argument("topic")
+@click.option("--count", "-n", default=12, type=int, help="Number of hashtags")
+def hashtags(topic: str, count: int):
+    """Suggest research-appropriate Instagram hashtags for a peptide topic."""
+    from content.generator import ContentGenerator
+    generator = ContentGenerator()
+    click.echo(f"Generating hashtags for '{topic}'...\n")
+    tags = generator.suggest_hashtags(topic, platform="instagram", count=count)
+    for tag in tags:
+        click.echo(tag)
+
+
+# ---------------------------------------------------------------------------
+# Compliance check
+# ---------------------------------------------------------------------------
+
+@cli.command("compliance")
+@click.argument("content")
+def compliance(content: str):
+    """Check post content for regulatory compliance issues."""
+    from content.generator import ContentGenerator
+    generator = ContentGenerator()
+    click.echo("Checking compliance...\n")
+    result = generator.check_compliance(content)
+    if result.get("compliant"):
+        click.echo(click.style("COMPLIANT — no issues found.", fg="green", bold=True))
+    else:
+        click.echo(click.style("NON-COMPLIANT — issues found:", fg="red", bold=True))
+        for issue in result.get("issues", []):
+            click.echo(f"  - {issue}")
+    if result.get("suggestion"):
+        click.echo(click.style(f"\nSuggestion: {result['suggestion']}", fg="yellow"))
 
 
 # ---------------------------------------------------------------------------
